@@ -4,49 +4,47 @@ const {
  DisconnectReason
 } = require("@whiskeysockets/baileys")
 
-const qrcode = require("qrcode-terminal")
-const fs = require("fs")
-
 async function startBot() {
 
  const { state, saveCreds } =
  await useMultiFileAuthState("session")
 
  const sock = makeWASocket({
-   auth: state
+   auth: state,
+   printQRInTerminal: false
  })
 
  sock.ev.on("creds.update", saveCreds)
 
- sock.ev.on("connection.update", (update) => {
+ // Pairing Code
+ if (!sock.authState.creds.registered) {
 
-   const {
-     connection,
-     qr,
-     lastDisconnect
-   } = update
+   const phoneNumber =
+   "919452814970"
 
-   if (qr) {
-     qrcode.generate(qr, {
-       small: true
-     })
-   }
+   const code =
+   await sock.requestPairingCode(
+   phoneNumber
+   )
+
+   console.log(
+   "\nPAIRING CODE:",
+   code
+   )
+ }
+
+ sock.ev.on(
+ "connection.update",
+ ({ connection }) => {
 
    if (connection === "open") {
      console.log("Bot Connected ✅")
    }
 
    if (connection === "close") {
-
-     const shouldReconnect =
-     lastDisconnect?.error?.output
-     ?.statusCode !==
-     DisconnectReason.loggedOut
-
-     if (shouldReconnect) {
-       startBot()
-     }
+     startBot()
    }
+
  })
 
  sock.ev.on(
@@ -69,9 +67,7 @@ async function startBot() {
    const message =
    text.toLowerCase().trim()
 
-   console.log("Message:", message)
-
-   // HI REPLY
+   // HI
    if (message === "hi") {
 
      await sock.sendMessage(from, {
@@ -84,11 +80,12 @@ async function startBot() {
    // APK SEND
    if (message === "app") {
 
+     const fs = require("fs")
+
      await sock.sendMessage(from, {
 
-       document: fs.readFileSync(
-       "/storage/emulated/0/Download/myapp.apk"
-       ),
+       document:
+       fs.readFileSync("./myapp.apk"),
 
        mimetype:
        "application/vnd.android.package-archive",
@@ -103,12 +100,8 @@ async function startBot() {
      return
    }
 
-   // DEFAULT REPLY
-   await sock.sendMessage(from, {
-     text: "🤖 Bot Active"
-   })
-
  })
+
 }
 
 startBot()
